@@ -1,0 +1,11 @@
+date,amount,type,vendor
+01/01/2026,10000,expense,Vendor A
+02/01/2026,12000,expense,Vendor B
+03/01/2026,9000,expense,Vendor C
+04/01/2026,980000,expense,Vendor D
+05/01/2026,11000,expense,Vendor E
+06/01/2026,45000,revenue,Client X
+07/01/2026,10500,expense,Vendor A
+08/01/2026,10500,expense,Vendor A
+09/01/2026,60000,revenue,Client Y
+10/01/2026,9800,expense,Vendor F
