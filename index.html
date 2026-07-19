@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinAudit AI — Investigation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===== Sidebar ===== -->
+  <aside class="case-rail">
+    <div class="rail-brand">
+      <div class="brand-mark">FA</div>
+      <div class="brand-text">
+        <span class="brand-name">FinAudit AI</span>
+        <span class="brand-sub">Investigation Console</span>
+      </div>
+    </div>
+
+    <nav class="rail-nav">
+      <button class="rail-link active" data-view="dashboard">
+        <span class="rail-icon">◈</span> Dashboard
+      </button>
+      <button class="rail-link" data-view="upload">
+        <span class="rail-icon">⤒</span> Intake
+      </button>
+      <button class="rail-link" data-view="ledger">
+        <span class="rail-icon">≣</span> Financials
+      </button>
+      <button class="rail-link" data-view="cases">
+        <span class="rail-icon">▤</span> Case Files
+        <span class="rail-badge" id="openCasesBadge">0</span>
+      </button>
+      <button class="rail-link" data-view="report">
+        <span class="rail-icon">✦</span> Audit Report
+      </button>
+    </nav>
+
+    <div class="rail-status">
+      <div class="status-row">
+        <span class="status-dot" id="connDot"></span>
+        <span id="connLabel">Checking backend…</span>
+      </div>
+      <div class="status-meta" id="batchLabel">No batch loaded</div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="stage">
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view active" id="view-dashboard">
+      <header class="stage-header">
+        <div>
+          <p class="eyebrow">Overview</p>
+          <h1>Investigation Dashboard</h1>
+        </div>
+        <button class="btn ghost" id="refreshDash">Refresh figures</button>
+      </header>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span class="metric-label">Total Revenue</span>
+          <span class="metric-value" id="m-revenue">—</span>
+          <span class="metric-delta up" id="m-revenue-delta"></span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Total Expenses</span>
+          <span class="metric-value" id="m-expenses">—</span>
+          <span class="metric-delta" id="m-expenses-delta"></span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Net Profit / Loss</span>
+          <span class="metric-value" id="m-profit">—</span>
+          <span class="metric-delta" id="m-profit-delta"></span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Estimated Tax</span>
+          <span class="metric-value" id="m-tax">—</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Net Cash Flow</span>
+          <span class="metric-value" id="m-cashflow">—</span>
+        </div>
+        <div class="metric-card highlight">
+          <span class="metric-label">Open Case Files</span>
+          <span class="metric-value" id="m-cases">—</span>
+          <span class="metric-delta" id="m-cases-sub">awaiting review</span>
+        </div>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel chart-panel">
+          <div class="panel-head">
+            <h2>Revenue vs Expenses</h2>
+            <span class="panel-tag">Last 6 periods</span>
+          </div>
+          <canvas id="trendChart" height="220"></canvas>
+        </div>
+        <div class="panel feed-panel">
+          <div class="panel-head">
+            <h2>Investigation Feed</h2>
+            <span class="panel-tag">Live</span>
+          </div>
+          <ul class="feed-list" id="feedList"></ul>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Priority Case Files</h2>
+          <span class="panel-tag">Sorted by severity</span>
+        </div>
+        <div class="case-grid" id="priorityCases"></div>
+      </div>
+    </section>
+
+    <!-- ---------- INTAKE / UPLOAD ---------- -->
+    <section class="view" id="view-upload">
+      <header class="stage-header">
+        <div>
+          <p class="eyebrow">Step 01</p>
+          <h1>Document Intake</h1>
+        </div>
+      </header>
+
+      <div class="panel">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-mark">⤒</div>
+          <p class="dropzone-title">Drop financial records here</p>
+          <p class="dropzone-sub">Bank statements, ledgers, invoices, expense reports — .csv, .xlsx, .pdf</p>
+          <label class="btn primary file-btn">
+            Choose files
+            <input type="file" id="fileInput" multiple hidden>
+          </label>
+        </div>
+
+        <ul class="file-queue" id="fileQueue"></ul>
+
+        <button class="btn primary wide" id="startCleaning" disabled>Run cleaning agent</button>
+      </div>
+
+      <div class="panel" id="cleaningPanel" style="display:none;">
+        <div class="panel-head">
+          <h2>Data Cleaning Agent</h2>
+          <span class="panel-tag" id="cleaningTag">Running</span>
+        </div>
+        <ul class="pipeline-steps" id="pipelineSteps">
+          <li data-step="dedupe"><span class="step-dot"></span> Removing duplicate records</li>
+          <li data-step="fillna"><span class="step-dot"></span> Repairing missing values</li>
+          <li data-step="dates"><span class="step-dot"></span> Standardizing dates &amp; currency</li>
+          <li data-step="structure"><span class="step-dot"></span> Structuring clean dataset</li>
+        </ul>
+        <div class="normalize-sample" id="normalizeSample" style="display:none;">
+          <div class="sample-col">
+            <span class="sample-label">Before</span>
+            <code>01/01/26</code><code>1 Jan 2026</code><code>2026-01-01</code>
+          </div>
+          <div class="sample-arrow">→</div>
+          <div class="sample-col">
+            <span class="sample-label">After</span>
+            <code>2026-01-01</code><code>2026-01-01</code><code>2026-01-01</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- FINANCIALS ---------- -->
+    <section class="view" id="view-ledger">
+      <header class="stage-header">
+        <div>
+          <p class="eyebrow">Step 02</p>
+          <h1>Financial Calculations</h1>
+        </div>
+      </header>
+
+      <div class="panel">
+        <table class="ledger-table" id="ledgerTable">
+          <thead>
+            <tr><th>Metric</th><th>Value</th><th>Trend</th></tr>
+          </thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>Cash Flow</h2></div>
+          <canvas id="cashflowChart" height="200"></canvas>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>Key Ratios</h2></div>
+          <canvas id="ratiosChart" height="200"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- CASE FILES ---------- -->
+    <section class="view" id="view-cases">
+      <header class="stage-header">
+        <div>
+          <p class="eyebrow">Step 03–04</p>
+          <h1>Anomaly Case Files</h1>
+        </div>
+        <div class="filter-row">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="critical">Critical</button>
+          <button class="chip" data-filter="high">High</button>
+          <button class="chip" data-filter="medium">Medium</button>
+          <button class="chip" data-filter="low">Low</button>
+          <button class="chip" data-filter="cleared">Cleared</button>
+        </div>
+      </header>
+
+      <div class="case-grid wide" id="allCases"></div>
+    </section>
+
+    <!-- ---------- CASE DETAIL ---------- -->
+    <section class="view" id="view-case-detail">
+      <header class="stage-header">
+        <div>
+          <button class="btn ghost small" id="backToCases">← Back to case files</button>
+          <p class="eyebrow" id="cd-eyebrow">Case</p>
+          <h1 id="cd-title">—</h1>
+        </div>
+        <span class="stamp" id="cd-stamp">UNDER REVIEW</span>
+      </header>
+
+      <div class="panel-row">
+        <div class="panel">
+          <div class="panel-head"><h2>Transaction</h2></div>
+          <dl class="kv-list" id="cd-kv"></dl>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Baseline vs Flagged Amount</h2></div>
+          <canvas id="caseChart" height="180"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Investigation Timeline</h2></div>
+        <ol class="timeline" id="cd-timeline"></ol>
+      </div>
+
+      <div class="panel" id="cd-contact-panel">
+        <div class="panel-head"><h2>Awaiting Response</h2></div>
+        <p class="muted" id="cd-contact-msg"></p>
+        <div class="reply-row">
+          <input type="text" id="cd-reply-input" placeholder="Type the finance manager's reply, e.g. &quot;Approved, matches Q1 equipment PO&quot;">
+          <button class="btn primary" id="cd-reply-send">Submit reply</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- REPORT ---------- -->
+    <section class="view" id="view-report">
+      <header class="stage-header">
+        <div>
+          <p class="eyebrow">Step 09</p>
+          <h1>Audit Report</h1>
+        </div>
+        <button class="btn primary" id="exportReport">Export report</button>
+      </header>
+
+      <div class="panel report-panel" id="reportPanel">
+        <div class="report-head">
+          <h2>Audit Summary</h2>
+          <span class="stamp" id="report-risk-stamp">LOW RISK</span>
+        </div>
+        <p id="report-summary" class="muted"></p>
+
+        <h3>Findings</h3>
+        <ul class="report-findings" id="report-findings"></ul>
+
+        <h3>Recommended Actions</h3>
+        <ul class="report-actions" id="report-actions"></ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<template id="caseCardTemplate">
+  <article class="case-card">
+    <div class="case-card-top">
+      <span class="case-number"></span>
+      <span class="stamp"></span>
+    </div>
+    <p class="case-desc"></p>
+    <div class="case-card-meta">
+      <span class="case-amount"></span>
+      <span class="case-date"></span>
+    </div>
+  </article>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/mock-data.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
