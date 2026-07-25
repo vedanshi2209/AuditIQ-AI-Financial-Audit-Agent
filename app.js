@@ -59,7 +59,8 @@ async function boot() {
     label.textContent = "Backend unreachable — showing demo data";
   }
 
-  state.batchId = MOCK.batchId;
+  // Fallback if backend doesn't give an ID right away
+  state.batchId = state.batchId || "batch-2026-03";
   $("#batchLabel").textContent = `Batch ${state.batchId}`;
 
   await loadDashboardData();
@@ -85,6 +86,7 @@ function updateCaseBadge() {
 /* ---------------- Dashboard ---------------- */
 function renderMetrics() {
   const f = state.financials;
+  if (!f) return;
   $("#m-revenue").textContent = fmtINR(f.totalRevenue);
   $("#m-revenue-delta").textContent = `▲ ${f.revenueDeltaPct}% vs prior period`;
   $("#m-expenses").textContent = fmtINR(f.totalExpenses);
@@ -100,6 +102,7 @@ function renderMetrics() {
 function renderFeed(feed) {
   const list = $("#feedList");
   list.innerHTML = "";
+  if (!feed) return;
   feed.forEach((item) => {
     const li = document.createElement("li");
     li.innerHTML = `<span class="feed-time">${item.time}</span>${item.text}`;
@@ -248,6 +251,7 @@ $("#cd-reply-send").addEventListener("click", async () => {
 });
 
 function renderCaseChart(a) {
+  if (typeof Chart === 'undefined') return; // FIX: Don't crash
   const ctx = $("#caseChart");
   if (state.charts.case) state.charts.case.destroy();
   state.charts.case = new Chart(ctx, {
@@ -267,6 +271,8 @@ function renderCaseChart(a) {
 /* ---------------- Financials / ledger ---------------- */
 function renderLedger() {
   const f = state.financials;
+  if(!f) return;
+  
   const rows = [
     ["Total revenue", fmtINR(f.totalRevenue), `▲ ${f.revenueDeltaPct}%`],
     ["Total expenses", fmtINR(f.totalExpenses), `▲ ${f.expenseDeltaPct}%`],
@@ -294,7 +300,10 @@ function chartBaseOptions({ legend = true } = {}) {
 }
 
 function renderTrendChart() {
+  if (typeof Chart === 'undefined') return; // FIX: Don't crash if Chart tool is missing
   const f = state.financials;
+  if (!f || !f.trend) return;
+  
   const ctx = $("#trendChart");
   if (state.charts.trend) state.charts.trend.destroy();
   state.charts.trend = new Chart(ctx, {
@@ -311,7 +320,10 @@ function renderTrendChart() {
 }
 
 function renderCashflowChart() {
+  if (typeof Chart === 'undefined') return; // FIX: Don't crash
   const f = state.financials;
+  if (!f || !f.cashflow) return;
+  
   const ctx = $("#cashflowChart");
   if (state.charts.cashflow) state.charts.cashflow.destroy();
   state.charts.cashflow = new Chart(ctx, {
@@ -329,7 +341,10 @@ function renderCashflowChart() {
 }
 
 function renderRatiosChart() {
+  if (typeof Chart === 'undefined') return; // FIX: Don't crash
   const f = state.financials;
+  if (!f || !f.ratios) return;
+  
   const ctx = $("#ratiosChart");
   const labels = Object.keys(f.ratios);
   const values = Object.values(f.ratios);
@@ -359,6 +374,7 @@ function renderRatiosChart() {
     }
   });
 }
+
 
 /* ---------------- Upload / intake ---------------- */
 const dropzone = $("#dropzone");
@@ -390,30 +406,47 @@ function renderFileQueue() {
   $("#startCleaning").disabled = state.queuedFiles.length === 0;
 }
 
+// THIS IS THE FIXED BLOCK
 $("#startCleaning").addEventListener("click", async () => {
   const btn = $("#startCleaning");
   btn.disabled = true;
   btn.textContent = "Uploading…";
 
-  await Api.upload(state.queuedFiles);
+  try {
+    // 1. Upload to FastAPI
+    const uploadRes = await Api.upload(state.queuedFiles);
+    state.batchId = uploadRes.batchId;
+    $("#batchLabel").textContent = `Batch ${state.batchId}`;
+    
+    // Reload the dashboard
+    await loadDashboardData();
 
-  $("#cleaningPanel").style.display = "block";
-  const steps = ["dedupe", "fillna", "dates", "structure"];
-  for (const step of steps) {
-    const li = $(`#pipelineSteps li[data-step="${step}"]`);
-    li.classList.add("active");
-    await Api.getUploadStatus(state.batchId);
-    await new Promise(r => setTimeout(r, 500));
-    li.classList.remove("active");
-    li.classList.add("done");
-    if (step === "dates") $("#normalizeSample").style.display = "flex";
+    // 2. Show the fancy cleaning UI
+    $("#cleaningPanel").style.display = "block";
+    const steps = ["dedupe", "fillna", "dates", "structure"];
+    for (const step of steps) {
+      const li = $(`#pipelineSteps li[data-step="${step}"]`);
+      li.classList.add("active");
+      await Api.getUploadStatus(state.batchId);
+      await new Promise(r => setTimeout(r, 500));
+      li.classList.remove("active");
+      li.classList.add("done");
+      if (step === "dates") $("#normalizeSample").style.display = "flex";
+    }
+    
+    $("#cleaningTag").textContent = "Complete";
+    btn.textContent = "Cleaning complete — view financials";
+    btn.disabled = false;
+    btn.onclick = () => { showView("ledger"); renderLedger(); };
+    
+  } catch (err) {
+    // THIS WILL POP UP THE EXACT ERROR ON YOUR SCREEN
+    alert("JAVASCRIPT ERROR: " + err.message);
+    console.error(err);
+    btn.textContent = "Upload failed. Try again.";
+    btn.disabled = false;
   }
-  $("#cleaningTag").textContent = "Complete";
-  btn.textContent = "Cleaning complete — view financials";
-  btn.disabled = false;
-  btn.onclick = () => { showView("ledger"); renderLedger(); };
 });
-
 $("#refreshDash").addEventListener("click", loadDashboardData);
 
 /* ---------------- Report ---------------- */
